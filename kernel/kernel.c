@@ -1,6 +1,6 @@
-#include "terminal.h"
+#include "drivers/terminal/terminal.h"
 
-void _start(){
+void _start(void){
     print_char('H');
     print_char('e');
     print_char('l');
