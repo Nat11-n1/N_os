@@ -12,7 +12,7 @@ void print_char(char character){
         currentscreensizey++;
     }
     else if(character=='\b'){
-
+        
     }
     else{
         int position = (currentscreensizey * maxscreensizex + currentscreensizex) * 2;
@@ -41,7 +41,7 @@ void clear_terminal(void){
     currentscreensizey = 0;
 }
 
-void print_string(unsigned char *string){
+void print_str(unsigned char *string){
     for(int i = 0; string[i] != '\0'; i++){
         print_char(string[i]);
     }
