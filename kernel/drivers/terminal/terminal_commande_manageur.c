@@ -2,8 +2,8 @@
 #include "kernel/lib/strcmp.h"
 #include "kernel/drivers/terminal/terminal.h"
 
-#define maxmaincommande 25
-#define maxobjectcommande 100
+#define maxmaincommande 50
+#define maxobjectcommande 450
 
 static unsigned char maincommande[maxmaincommande];
 static unsigned char objectcommande[maxobjectcommande];
@@ -44,6 +44,7 @@ void find_commande(unsigned char* commande){
     }
     else{
         print_str(commande);
-        print_str(" : unknown command !\n");
+        print_str(" : unknown command !");
+        return_to_line();
     }
 }

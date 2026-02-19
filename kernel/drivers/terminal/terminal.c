@@ -19,9 +19,8 @@ void start_terminal(void){
             screenchar[y][x] = ' ';
         }
     }
-    print_str("Welcome to N_os\t");
-    current_screen_pos_x = 0;
-    current_screen_pos_y++;
+    print_str("Welcome to N_os");
+    return_to_line();
 }
 
 void print_char(char character){
@@ -31,11 +30,7 @@ void print_char(char character){
         execute_commande(commande);
         commande_index = 0;
         commande[0] = '\0';
-        current_screen_pos_x = 0;
-        current_screen_pos_y++;
-        if (current_screen_pos_y == max_screen_size_y){
-            scrollscreen();
-        }
+        return_to_line();
     }
     //delete last character
     else if(character=='\b'){
@@ -73,13 +68,13 @@ void print_char(char character){
         current_screen_pos_x++;
         
         if (current_screen_pos_x == max_screen_size_x){
-            current_screen_pos_x = 0;
-            current_screen_pos_y++;
+        current_screen_pos_x = 0;
+        current_screen_pos_y++;
             
-            if (current_screen_pos_y == max_screen_size_y){
-                scrollscreen();
-            }
+        if (current_screen_pos_y == max_screen_size_y){
+            scroll_screen();
         }
+    }
     }
 }
 
@@ -98,7 +93,7 @@ void print_str(unsigned char *string){
     }
 }
 
-void scrollscreen(void) {
+void scroll_screen(void) {
     for (int y = 0; y < max_screen_size_y - 1; y++) {
         for (int x = 0; x < max_screen_size_x; x++) {
             screenchar[y][x] = screenchar[y+1][x];
@@ -116,5 +111,16 @@ void scrollscreen(void) {
         int pos = (last_y * max_screen_size_x + x) * 2;
         VGA_screen[pos]     = ' ';
         VGA_screen[pos + 1] = 0x0f;
+    }
+}
+
+void return_to_line(void) {
+    current_screen_pos_x = 0;
+
+    if (current_screen_pos_y < max_screen_size_y - 1) {
+        current_screen_pos_y++;
+    } else {
+        scroll_screen();
+        current_screen_pos_y = max_screen_size_y - 1;
     }
 }
