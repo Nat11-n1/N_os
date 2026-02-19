@@ -1,3 +1,5 @@
+#include "strcmp.h"
+
 int i= 0;
 
 int issamestr(unsigned char* str1,unsigned char* str2){

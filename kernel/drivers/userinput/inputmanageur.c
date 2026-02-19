@@ -1,5 +1,6 @@
-#include "kernel\drivers\terminal\terminal.h"
-#include "kernel\drivers\userinput\keybord\keybord.h"
+#include "kernel/drivers/terminal/terminal.h"
+#include "keybord/keybord.h"
+#include "inputmanageur.h"
 
 void keyinkeybordpressed(char key){
     print_char(key);

@@ -1,4 +1,5 @@
-#include "kernel\drivers\userinput\inputmanageur.h"
+#include "kernel/drivers/userinput/inputmanageur.h"
+#include "keybord.h"
 
 unsigned char kbd_azerty[128] = {
     0,  27, '1', '2', '3', '4', '5', '6', '7', '8', '9', '0', ')', '=', '\b', /* 0x00 - 0x0E */
