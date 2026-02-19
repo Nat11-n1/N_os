@@ -7,18 +7,27 @@ static int maxscreensizey = 25;
 static unsigned char* VGA_screen = (unsigned char*) 0xb8000;
 
 void print_char(char character){
-    int position = (currentscreensizey * maxscreensizex + currentscreensizex) * 2;
-    VGA_screen[position] = character;
-    VGA_screen[position + 1] = 0x0f;
-    
-    currentscreensizex++;
-    
-    if (currentscreensizex == maxscreensizex){
+    if (character=='\n'){
         currentscreensizex = 0;
         currentscreensizey++;
+    }
+    else if(character=='\b'){
+
+    }
+    else{
+        int position = (currentscreensizey * maxscreensizex + currentscreensizex) * 2;
+        VGA_screen[position] = character;
+        VGA_screen[position + 1] = 0x0f;
         
-        if (currentscreensizey == maxscreensizey){
-            currentscreensizey = 0;
+        currentscreensizex++;
+        
+        if (currentscreensizex == maxscreensizex){
+            currentscreensizex = 0;
+            currentscreensizey++;
+            
+            if (currentscreensizey == maxscreensizey){
+                currentscreensizey = 0;
+            }
         }
     }
 }
@@ -30,4 +39,10 @@ void clear_terminal(void){
     }
     currentscreensizex = 0;
     currentscreensizey = 0;
+}
+
+void print_string(unsigned char *string){
+    for(int i = 0; string[i] != '\0'; i++){
+        print_char(string[i]);
+    }
 }
