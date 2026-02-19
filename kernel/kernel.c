@@ -1,6 +1,6 @@
 #include "drivers/terminal/terminal.h"
 
 void _start(void){
-    void start_termianl();
+    start_terminal();
     while(1);
 }
