@@ -1,5 +1,6 @@
 #include "terminal.h"
 #include "terminal_commande_manageur.h"
+#include "lib\hex_utils.h"
 
 #define max_commande_lenght 500
 
@@ -123,4 +124,13 @@ void return_to_line(void) {
         scroll_screen();
         current_screen_pos_y = max_screen_size_y - 1;
     }
+}
+
+void update_cursor(void){
+    int position = (current_screen_pos_y * max_screen_size_x + current_screen_pos_x) * 2;
+    char position_hexa = to_hex(position);
+    inb(0x3d4,14);
+    outb(0x3d5);
+    inb(0x3d4,15);
+    outb(0x3d5);
 }
