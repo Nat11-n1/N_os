@@ -69,13 +69,13 @@ void print_char(char character){
         current_screen_pos_x++;
         
         if (current_screen_pos_x == max_screen_size_x){
-        current_screen_pos_x = 0;
-        current_screen_pos_y++;
+            current_screen_pos_x = 0;
+            current_screen_pos_y++;
             
-        if (current_screen_pos_y == max_screen_size_y){
+            if (current_screen_pos_y == max_screen_size_y){
             scroll_screen();
+            }
         }
-    }
     }
 }
 
