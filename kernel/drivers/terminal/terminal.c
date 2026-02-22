@@ -127,10 +127,9 @@ void return_to_line(void) {
 }
 
 void update_cursor(void){
-    int position = (current_screen_pos_y * max_screen_size_x + current_screen_pos_x) * 2;
-    char position_hexa = to_hex(position);
-    inb(0x3d4,14);
-    outb(0x3d5);
-    inb(0x3d4,15);
-    outb(0x3d5);
+    int position = (current_screen_pos_y * max_screen_size_x + current_screen_pos_x);
+    outb(0x3D4, 14);
+    outb(0x3D5, (position >> 8) & 0xFF);
+    outb(0x3D4, 15);
+    outb(0x3D5, position & 0xFF);
 }
