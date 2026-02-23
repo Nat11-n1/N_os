@@ -1,1 +1,4 @@
 .vscode
+kernel/kernel.obj
+kernel/kernel.pdb
+kernel/vc140.pdb
