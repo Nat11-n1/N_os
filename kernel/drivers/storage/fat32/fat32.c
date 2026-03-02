@@ -11,6 +11,8 @@ int root_cluster=0;
 int fat_start=0;
 int data_start=0;
 
+uint32_t current_cluster;
+
 void fat32_init(){
     uint8_t buffer[512];
     ata_read_sector(0, buffer);
@@ -23,6 +25,8 @@ void fat32_init(){
 
     fat_start  = reserved_sectors;
     data_start = reserved_sectors + (fat_count * sectors_per_fat);
+
+    current_cluster = root_cluster;
 }
 
 void fat32_read_cluster(uint32_t cluster, uint8_t* buffer){
