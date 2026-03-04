@@ -20,49 +20,53 @@ void start_terminal(void){
             screenchar[y][x] = ' ';
         }
     }
-    print_str("Welcome to N_os");
+    print_str("Welcome to N_os",0);
     return_to_line();
 }
 
-void print_char(char character){
-    //execute the commande
-    if(character=='\n'){
-        commande[commande_index]= '\0';
-        execute_commande(commande);
-        commande_index = 0;
-        commande[0] = '\0';
-        return_to_line();
-    }
-    //delete last character
-    else if(character=='\b'){
-        if (commande_index !=0){
-            commande_index = commande_index-1;
-            commande[commande_index]='\0';
+void print_char(char character,int input){
+    if (input == 1){
+        //execute the commande
+        if(character=='\n'){
+            commande[commande_index]= '\0';
+            execute_commande(commande);
+            commande_index = 0;
+            commande[0] = '\0';
+            return_to_line();
         }
-        int lastposition = (current_screen_pos_y * max_screen_size_x + current_screen_pos_x-1) * 2;
-        VGA_screen[lastposition] = ' ';
-        VGA_screen[lastposition + 1] = 0x0f;
-        screenchar[current_screen_pos_y][current_screen_pos_x-1] = ' ';
-        if (current_screen_pos_x != 0){
-            current_screen_pos_x--;
-        }else{
-            if(current_screen_pos_y!=0){
-                current_screen_pos_x=max_screen_size_x-1;
-                current_screen_pos_y--;
+        //delete last character
+        else if(character=='\b'){
+            if (commande_index !=0){
+                commande_index = commande_index-1;
+                commande[commande_index]='\0';
             }
-            else{
-                current_screen_pos_x =0;
+            int lastposition = (current_screen_pos_y * max_screen_size_x + current_screen_pos_x-1) * 2;
+            VGA_screen[lastposition] = ' ';
+            VGA_screen[lastposition + 1] = 0x0f;
+            screenchar[current_screen_pos_y][current_screen_pos_x-1] = ' ';
+            if (current_screen_pos_x != 0){
+                current_screen_pos_x--;
+            }else{
+                if(current_screen_pos_y!=0){
+                    current_screen_pos_x=max_screen_size_x-1;
+                    current_screen_pos_y--;
+                }
+                else{
+                    current_screen_pos_x =0;
+                }
             }
         }
     }
     //print the character
-    else{
+    {
         int position = (current_screen_pos_y * max_screen_size_x + current_screen_pos_x) * 2;
         VGA_screen[position] = character;
         VGA_screen[position + 1] = 0x0f;
 
+        if (input == 1){
         commande[commande_index] = character;
         commande_index++;
+        }
 
         screenchar[current_screen_pos_y][current_screen_pos_x] = character;
 
@@ -88,9 +92,9 @@ void clear_terminal(void){
     current_screen_pos_y = 0;
 }
 
-void print_str(unsigned char *string){
+void print_str(unsigned char *string,int input){
     for(int i = 0; string[i] != '\0'; i++){
-        print_char(string[i]);
+        print_char(string[i],input);
     }
 }
 

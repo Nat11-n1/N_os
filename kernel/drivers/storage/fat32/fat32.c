@@ -11,8 +11,6 @@ int root_cluster=0;
 int fat_start=0;
 int data_start=0;
 
-uint32_t current_cluster;
-
 void fat32_init(){
     uint8_t buffer[512];
     ata_read_sector(0, buffer);
@@ -25,8 +23,6 @@ void fat32_init(){
 
     fat_start  = reserved_sectors;
     data_start = reserved_sectors + (fat_count * sectors_per_fat);
-
-    current_cluster = root_cluster;
 }
 
 void fat32_read_cluster(uint32_t cluster, uint8_t* buffer){
@@ -45,7 +41,7 @@ uint32_t fat32_next_cluster(uint32_t cluster){
     return next_cluster;
 }
 
-void fat32_list_dir(uint32_t cluster){
+void fat32_list_dir(uint32_t cluster , int* filesfound){
     uint8_t buffer[512 * 8];//maximum size for a cluster in fat32
     fat32_read_cluster(cluster,buffer);
     for (int i = 0; i < sectors_per_cluster * 512;i+=32){
@@ -62,6 +58,7 @@ void fat32_list_dir(uint32_t cluster){
             }
             name[11] = '\0';
             print_str((unsigned char*)name);
+            *filesfound++;
         }
     }
 }

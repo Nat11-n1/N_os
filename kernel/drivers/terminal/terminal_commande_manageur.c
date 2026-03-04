@@ -1,6 +1,7 @@
 #include "terminal_commande_manageur.h"
-#include "kernel/lib/strcmp.h"
-#include "kernel/drivers/terminal/terminal.h"
+#include "kernel\lib\strcmp.h"
+#include "kernel\drivers\terminal\terminal.h"
+#include "kernel\drivers\storage\filesysteme\filesysteme.h"
 
 #define maxmaincommande 50
 #define maxobjectcommande 450
@@ -41,6 +42,12 @@ void execute_commande(unsigned char *commande){
 void find_commande(unsigned char* commande){
     if (issamestr(commande,"clear")){
         clear_terminal();
+    }
+    else if(issamestr(commande,"dir")){
+        void list_files();
+    }
+    else if(issamestr(commande,"exe")){
+        void exe_file(objectcommande);
     }
     else{
         print_str(commande);
