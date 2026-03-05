@@ -17,3 +17,9 @@ void exe_file(char* filename){
     void (*entry)() = (void (*)())dir_buffer;
     entry();
 }
+
+void open_file(char* filename){
+    void fat32_read_file(current_dir, filename, dir_buffer);
+    clear_terminal;
+    
+}
