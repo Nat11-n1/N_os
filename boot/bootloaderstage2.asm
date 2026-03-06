@@ -11,7 +11,41 @@ mov bx, 0x10000 ;load kernel at 0x10000
 int 0x13
 jc disk_error
 
-jmp setup_gdt
+;memory map
+jmp detect_memory
+detect_memory:
+    xor ebx, ebx
+    xor bp,  bp
+    mov word [0x5FF8], 0
+
+    mov ax, 0x0000
+    mov es, ax
+    mov di, 0x6000
+
+.e820_loop:
+    mov eax, 0xE820
+    mov ecx, 24
+    mov edx, 0x534D4150
+    mov dword [es:di + 20], 1
+    int 0x15
+    jc .e820_done
+    cmp eax, 0x534D4150
+    jne .e820_done
+    test ecx, ecx
+    jz .e820_next
+    cmp ecx, 20
+    jl .e820_next
+    inc bp
+    add di, 24
+
+.e820_next:
+    test ebx, ebx
+    jz .e820_done
+    jmp .e820_loop
+
+.e820_done:
+    mov word [0x5FF8], bp
+    jmp setup_gdt  
 
 ;GDT for 32-bit protected mode
 gdt_start:
