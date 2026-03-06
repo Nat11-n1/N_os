@@ -1,8 +1,7 @@
+#include "kernel\lib\types.h"
+
 #ifndef fat32_h
 #define fat32_h
-
-typedef unsigned char uint8_t;
-typedef unsigned int uint32_t;
 
 void fat32_init();
 void fat32_read_cluster(uint32_t cluster, uint8_t* buffer);
