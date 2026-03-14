@@ -1,8 +1,11 @@
 #include "drivers\terminal\terminal.h"
-#include "drivers\storage\ata_pio\ata.h"
+#include "Start_management.h"
+#include "lib\utils.h"
 
 void _start(void){
-    ata_init();
+    if (start_os() != 1){
+        halt();
+    }
     start_terminal();
     while(1);
 }
