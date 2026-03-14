@@ -1,7 +1,7 @@
-#include "kernel\lib\types.h"
+#ifndef Physical_memory_manager_h
+#define Physical_memory_manager_h
 
-#ifndef fat32_h
-#define fat32_h
+#include "kernel\lib\types.h"
 
 void PMM_init(void);
 uint64_t PMM_alloc_page(void);
