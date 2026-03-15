@@ -1,5 +1,5 @@
 #include "drivers\terminal\terminal.h"
-#include "Start_management.h"
+#include "Startup_management.h"
 #include "lib\utils.h"
 
 void _start(void){
