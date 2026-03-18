@@ -1,188 +1,335 @@
-# Bootloader x86 → x86_64
+# N_OS
 
-Bootloader minimal en deux étapes écrit en assembleur x86/x86_64 (NASM). Il amorce une machine en mode réel 16-bit et la conduit jusqu'en mode long 64-bit avant de sauter au noyau.
+A 64-bit operating system built from scratch with a custom bootloader, kernel, memory management, storage drivers, and a basic shell interface.
 
----
+## Features
 
-## Architecture générale
+- **64-bit Long Mode**: Full x86-64 architecture support
+- **Custom Bootloader**: Two-stage bootloader with A20 line activation, GDT setup, E820 memory detection, and protected/long mode transition
+- **Physical Memory Manager**: Bitmap-based page frame allocator using E820 memory map
+- **Virtual Memory Manager**: 4-level paging with identity mapping
+- **Dynamic Allocator**: Custom `malloc`/`free` implementation (no stdlib)
+- **ATA PIO Driver**: LBA28 disk I/O on primary bus
+- **FAT32 Driver**: BPB parsing, cluster chaining, 8.3 filename support
+- **Filesystem Abstraction**: Unified VFS-style interface over FAT32
+- **VGA Text Mode Driver**: 80×25 character display with color support
+- **PS/2 Keyboard Driver**: Polling-based input with scancode translation
+- **Command Shell**: Basic shell with command parsing and execution
+- **App Manager**: Application lifecycle and input routing layer
+- **Modular Architecture**: Well-organized driver, memory, and library structure
+
+## Project Structure
 
 ```
-Disque                             Mémoire après chargement
-┌─────────────────────┐            ┌─────────────────────────────┐
-│ Secteur 1           │  ──────▶   │ 0x7C00  Stage 1 (512 B)     │
-│ bootloader.asm      │            ├─────────────────────────────┤
-├─────────────────────┤            │ 0x7E00  Stage 2 (2560 B)    │
-│ Secteurs 2→6        │  ──────▶   │         (bootloaderstage2)  │
-│ bootloaderstage2.asm│            ├─────────────────────────────┤
-├─────────────────────┤            │ 0x10000 Kernel (10 secteurs)│
-│ Secteurs 7→16       │  ──────▶   ├─────────────────────────────┤
-│ Kernel              │            │ 0x1000  PML4                 │
-└─────────────────────┘            │ 0x2000  PDPT                 │
-                                   │ 0x3000  PD                   │
-                                   │ 0x4000  PT  (identity map)   │
-                                   ├─────────────────────────────┤
-                                   │ 0x5FF8  Nb entrées E820      │
-                                   │ 0x6000  Memory map E820      │
-                                   ├─────────────────────────────┤
-                                   │ 0x90000 Stack                │
-                                   └─────────────────────────────┘
+N_OS/
+├── boot/
+│   ├── bootloader.asm              # Stage 1 bootloader (512 bytes)
+│   └── bootloaderstage2.asm        # Stage 2 bootloader (64-bit transition)
+├── kernel/
+│   ├── kernel.c                    # Kernel entry point
+│   ├── linker.ld                   # Linker script
+│   ├── Startup_management.c        # Boot sequence orchestration
+│   ├── Startup_management.h
+│   ├── apps/
+│   │   ├── app_manageur.c          # Application lifecycle manager
+│   │   └── app_manageur.h
+│   ├── drivers/
+│   │   ├── memory/
+│   │   │   ├── Physical_memory_manager.c  # Bitmap-based PMM
+│   │   │   ├── Physical_memory_manager.h
+│   │   │   ├── Virtual_memory_manageur.c  # VMM / paging
+│   │   │   └── Virtual_memory_manageur.h
+│   │   ├── storage/
+│   │   │   ├── ata_pio/
+│   │   │   │   ├── ata.c           # ATA PIO driver (LBA28)
+│   │   │   │   └── ata.h
+│   │   │   ├── fat32/
+│   │   │   │   ├── fat32.c         # FAT32 parser
+│   │   │   │   └── fat32.h
+│   │   │   └── filesysteme/
+│   │   │       ├── filesysteme.c   # Filesystem abstraction layer
+│   │   │       └── filesysteme.h
+│   │   ├── terminal/
+│   │   │   ├── terminal.c          # VGA text mode driver
+│   │   │   ├── terminal.h
+│   │   │   ├── terminal_commande_manageur.c  # Command parser
+│   │   │   └── terminal_commande_manageur.h
+│   │   └── userinput/
+│   │       ├── keybord/
+│   │       │   ├── keybord.c       # PS/2 keyboard driver
+│   │       │   └── keybord.h
+│   │       ├── inputmanageur.c     # Input event manager
+│   │       └── inputmanageur.h
+│   └── lib/
+│       ├── malloc.c                # Dynamic memory allocator
+│       ├── malloc.h
+│       ├── strcmp.c                # String comparison
+│       ├── strcmp.h
+│       ├── types.h                 # Fixed-width integer types (uint8_t, etc.)
+│       ├── utils.c                 # Misc utilities
+│       └── utils.h
+├── .gitignore
+└── README.md
 ```
 
----
+## Building
 
-## Fichiers
+### Prerequisites
 
-### `bootloader.asm` — Stage 1 (512 octets)
+- **NASM** (Netwide Assembler) for bootloader assembly
+- **GCC** with 64-bit support for kernel compilation
+- **LD** (GNU Linker)
+- **QEMU** for testing (optional but recommended)
 
-Chargé par le BIOS à `0x7C00`. Tient dans exactement **1 secteur** (512 octets) et a pour seul rôle de charger le stage 2.
+### Compilation Steps
 
-**Séquence d'exécution :**
+1. **Assemble the bootloader (Stage 1)**
+   ```bash
+   nasm -f bin boot/bootloader.asm -o boot/bootloader.bin
+   ```
 
-1. **Activation de la ligne A20** via le port `0x92` (méthode Fast A20) — permet d'adresser au-delà de 1 Mo.
-2. **Initialisation des segments** (`DS`, `ES` = 0) pour un adressage flat en mode réel.
-3. **Chargement du stage 2** via l'interruption BIOS `INT 13h / AH=02h` :
-   - 5 secteurs lus depuis le cylindre 0, tête 0, secteur 2
-   - Chargés à `0x7E00` (juste après le stage 1 en mémoire)
-4. **Saut vers** `0x0000:0x7E00` pour transférer le contrôle au stage 2.
-5. En cas d'erreur disque : affichage du message `"Disk error!"` via `INT 10h` puis `HLT`.
+2. **Assemble Stage 2 bootloader**
+   ```bash
+   nasm -f bin boot/bootloaderstage2.asm -o boot/bootloaderstage2.bin
+   ```
 
-**Format du secteur de boot :**
-- Rembourrage avec `0x00` jusqu'à l'octet 510
-- Signature de boot `0xAA55` aux octets 511-512
+3. **Compile kernel source files**
+   ```bash
+   # Kernel core
+   gcc -m64 -ffreestanding -nostdlib -nostdinc -c kernel/kernel.c -o kernel/kernel.o
+   gcc -m64 -ffreestanding -nostdlib -nostdinc -c kernel/Startup_management.c -o kernel/Startup_management.o
 
----
+   # Apps
+   gcc -m64 -ffreestanding -nostdlib -nostdinc -c kernel/apps/app_manageur.c -o kernel/apps/app_manageur.o
 
-### `bootloaderstage2.asm` — Stage 2 (2560 octets)
+   # Memory drivers
+   gcc -m64 -ffreestanding -nostdlib -nostdinc -c kernel/drivers/memory/Physical_memory_manager.c -o kernel/drivers/memory/Physical_memory_manager.o
+   gcc -m64 -ffreestanding -nostdlib -nostdinc -c kernel/drivers/memory/Virtual_memory_manageur.c -o kernel/drivers/memory/Virtual_memory_manageur.o
 
-Chargé à `0x7E00`. Occupe **5 secteurs** et orchestre toute la transition jusqu'en mode long 64-bit.
+   # Storage drivers
+   gcc -m64 -ffreestanding -nostdlib -nostdinc -c kernel/drivers/storage/ata_pio/ata.c -o kernel/drivers/storage/ata_pio/ata.o
+   gcc -m64 -ffreestanding -nostdlib -nostdinc -c kernel/drivers/storage/fat32/fat32.c -o kernel/drivers/storage/fat32/fat32.o
+   gcc -m64 -ffreestanding -nostdlib -nostdinc -c kernel/drivers/storage/filesysteme/filesysteme.c -o kernel/drivers/storage/filesysteme/filesysteme.o
 
-**Séquence d'exécution :**
+   # Terminal & input drivers
+   gcc -m64 -ffreestanding -nostdlib -nostdinc -c kernel/drivers/terminal/terminal.c -o kernel/drivers/terminal/terminal.o
+   gcc -m64 -ffreestanding -nostdlib -nostdinc -c kernel/drivers/terminal/terminal_commande_manageur.c -o kernel/drivers/terminal/terminal_commande_manageur.o
+   gcc -m64 -ffreestanding -nostdlib -nostdinc -c kernel/drivers/userinput/keybord/keybord.c -o kernel/drivers/userinput/keybord/keybord.o
+   gcc -m64 -ffreestanding -nostdlib -nostdinc -c kernel/drivers/userinput/inputmanageur.c -o kernel/drivers/userinput/inputmanageur.o
 
-#### 1. Chargement du noyau (mode réel 16-bit)
-- Lecture de **10 secteurs** depuis le secteur 7 (cylindre 0, tête 0)
-- Chargement à l'adresse `0x10000`
-- Utilise `INT 13h / AH=02h` — doit être fait **avant** de quitter le mode réel
+   # Libraries
+   gcc -m64 -ffreestanding -nostdlib -nostdinc -c kernel/lib/malloc.c -o kernel/lib/malloc.o
+   gcc -m64 -ffreestanding -nostdlib -nostdinc -c kernel/lib/strcmp.c -o kernel/lib/strcmp.o
+   gcc -m64 -ffreestanding -nostdlib -nostdinc -c kernel/lib/utils.c -o kernel/lib/utils.o
+   ```
 
-#### 2. Détection de la mémoire (INT 15h / E820)
-- Appels successifs à `INT 15h / EAX=0xE820` pour énumérer les régions mémoire
-- Chaque entrée fait 24 octets et est stockée à partir de `0x6000`
-- Le nombre d'entrées est écrit à l'adresse `0x5FF8` pour le noyau
+4. **Link kernel**
+   ```bash
+   ld -m elf_x86_64 -T kernel/linker.ld -o kernel/kernel.elf \
+     kernel/kernel.o \
+     kernel/Startup_management.o \
+     kernel/apps/app_manageur.o \
+     kernel/drivers/memory/Physical_memory_manager.o \
+     kernel/drivers/memory/Virtual_memory_manageur.o \
+     kernel/drivers/storage/ata_pio/ata.o \
+     kernel/drivers/storage/fat32/fat32.o \
+     kernel/drivers/storage/filesysteme/filesysteme.o \
+     kernel/drivers/terminal/terminal.o \
+     kernel/drivers/terminal/terminal_commande_manageur.o \
+     kernel/drivers/userinput/keybord/keybord.o \
+     kernel/drivers/userinput/inputmanageur.o \
+     kernel/lib/malloc.o \
+     kernel/lib/strcmp.o \
+     kernel/lib/utils.o
+   ```
 
-#### 3. GDT 32-bit et passage en mode protégé
-- Définition d'une GDT minimale :
-  - Descripteur nul (entrée 0)
-  - Segment de code 32-bit (`0x08`) : base 0, limite 4 Go, exécutable
-  - Segment de données 32-bit (`0x10`) : base 0, limite 4 Go, lecture/écriture
-- `LGDT`, passage du bit `PE` dans `CR0`, far jump vers `protected_mode`
+5. **Extract binary**
+   ```bash
+   objcopy -O binary kernel/kernel.elf kernel/kernel.bin
+   ```
 
-#### 4. Configuration des tables de pages 4 niveaux (mode protégé 32-bit)
-- Effacement de `0x1000` à `0x5000` (16 Ko)
-- Construction d'une hiérarchie de pages pour l'**identity mapping** des 2 premiers Mo :
-  - `PML4[0]` → `0x2003` (PDPT, présent + R/W)
-  - `PDPT[0]` → `0x3003` (PD, présent + R/W)
-  - `PD[0]`   → `0x4003` (PT, présent + R/W)
-  - PT : 512 entrées mappant `0x0` → `0x1FF000` (pages de 4 Ko)
-- `CR3` ← `0x1000`
-- Activation du **PAE** (bit 5 de `CR4`)
-- Activation du **Long Mode** via le bit LME du registre MSR `0xC0000080` (`EFER`)
-- Activation de la **pagination** (bit 31 de `CR0`)
+6. **Create OS image**
+   ```bash
+   cat boot/bootloader.bin boot/bootloaderstage2.bin kernel/kernel.bin > os.img
+   ```
 
-#### 5. GDT 64-bit et saut en mode long
-- Chargement d'une nouvelle GDT 64-bit :
-  - Descripteur nul
-  - Segment de code 64-bit (`0x00209A0000000000`)
-  - Segment de données 64-bit (`0x0000920000000000`)
-- Far jump vers `long_mode`
+### Running
 
-#### 6. Mode long 64-bit
-- Initialisation de tous les segments (`DS`, `ES`, `FS`, `GS`, `SS`)
-- Stack à `0x90000`
-- Saut absolu vers le noyau à `0x10000`
-
----
-
-## Disposition mémoire récapitulative
-
-| Adresse   | Contenu                              | Taille       |
-|-----------|--------------------------------------|--------------|
-| `0x1000`  | PML4 (table de pages niveau 4)       | 4 Ko         |
-| `0x2000`  | PDPT (table de pages niveau 3)       | 4 Ko         |
-| `0x3000`  | PD   (table de pages niveau 2)       | 4 Ko         |
-| `0x4000`  | PT   (table de pages niveau 1)       | 4 Ko         |
-| `0x5FF8`  | Nombre d'entrées E820 (word)         | 2 octets     |
-| `0x6000`  | Table mémoire E820                   | variable     |
-| `0x7C00`  | Stage 1                              | 512 octets   |
-| `0x7E00`  | Stage 2                              | 2560 octets  |
-| `0x10000` | Noyau                                | ≤10 secteurs |
-| `0x90000` | Stack                                | —            |
-
----
-
-## Prérequis & Build
-
-### Assemblage
-
+**With QEMU:**
 ```bash
-# Assembler les deux fichiers
-nasm -f bin bootloader.asm    -o stage1.bin
-nasm -f bin bootloaderstage2.asm -o stage2.bin
+qemu-system-x86_64 -drive format=raw,file=os.img
 ```
 
-### Création de l'image disque
-
+**With real hardware (advanced):**
 ```bash
-# Construire une image brute (stage1 + stage2 + kernel)
-cat stage1.bin stage2.bin kernel.bin > boot.img
+dd if=os.img of=/dev/sdX bs=512
+```
+⚠️ **Warning**: Replace `/dev/sdX` with your actual USB drive device. This will erase all data on it!
 
-# Optionnel : padder à une taille fixe (ex: 1.44 Mo pour une disquette)
-truncate -s 1474560 boot.img
+## Bootloader Architecture
+
+### Stage 1 (512 bytes)
+- Activates A20 line for extended memory access
+- Initializes segment registers
+- Loads Stage 2 from disk (sectors 2–6)
+- Transfers control to Stage 2
+
+### Stage 2 (2560 bytes)
+- Detects physical memory map via BIOS INT 0x15 / E820 (entry count at `0x5FF8`, table at `0x6000`)
+- Loads kernel from disk (sectors 7+)
+- Sets up GDT for 32-bit protected mode
+- Creates 4-level page tables (PML4, PDPT, PD, PT) — identity mapping
+- Enables PAE (Physical Address Extension)
+- Activates Long Mode via EFER MSR
+- Enables paging
+- Loads 64-bit GDT
+- Jumps to 64-bit kernel at `0x10000`
+
+## Kernel Features
+
+### Physical Memory Manager (PMM)
+- **Algorithm**: Bitmap-based page frame allocator
+- **Page size**: 4096 bytes
+- **Source**: E820 memory map from Stage 2
+- **Functions**: page allocation, deallocation, free zone marking
+
+### Virtual Memory Manager (VMM)
+- **Paging**: 4-level (PML4 → PDPT → PD → PT)
+- **Mapping**: Identity mapping during early boot
+- **Integration**: Works with PMM for physical frame allocation
+
+### Dynamic Allocator
+- Custom `malloc` / `free` — no standard library dependency
+- Defined in `kernel/lib/malloc.c`
+
+### ATA PIO Driver
+- **Mode**: PIO (Programmed I/O), LBA28
+- **Bus**: Primary (ports `0x1F0`–`0x1F7`)
+- **Operations**: sector read / write
+
+### FAT32 Driver
+- BPB (BIOS Parameter Block) parsing
+- Cluster chain traversal (FAT table)
+- 8.3 short filename support
+
+### Filesystem Abstraction
+- Unified interface over FAT32
+- Defined in `kernel/drivers/storage/filesysteme/`
+
+### Terminal Driver
+- **Resolution**: 80×25 characters
+- **Memory**: VGA text buffer at `0xB8000`
+- **Functions**: `print_char`, `print_str`, `clear_terminal`
+
+### Keyboard Driver
+- **Protocol**: PS/2 polling mode
+- **Ports**: `0x60` (data), `0x64` (status)
+- **Scancode Set**: Set 1
+- ASCII conversion, shift key support
+
+### Command Shell
+- **Commands**: `clear` (more coming)
+- Command parsing with argument support
+- Unknown command error handling
+
+### App Manager
+- Application lifecycle management
+- Input routing between shell and apps
+
+## Memory Map
+
+```
+0x00000 - 0x00500   BIOS Data Area
+0x00500 - 0x05FF7   Free
+0x05FF8              E820 entry count
+0x06000 - 0x06???   E820 memory map (24-byte entries)
+0x07C00 - 0x07E00   Stage 1 Bootloader (512 bytes)
+0x07E00 - 0x08800   Stage 2 Bootloader (2560 bytes)
+0x01000 - 0x02000   PML4 (Page Map Level 4)
+0x02000 - 0x03000   PDPT (Page Directory Pointer Table)
+0x03000 - 0x04000   PD (Page Directory)
+0x04000 - 0x05000   PT (Page Table)
+0x10000 - 0x?????   Kernel (loaded here)
+0x90000             Stack pointer
+0xB8000 - 0xB8FA0   VGA Text Buffer (4000 bytes)
 ```
 
-### Exécution avec QEMU
+## Development Roadmap
 
-```bash
-# Boot direct sur l'image
-qemu-system-x86_64 -drive format=raw,file=boot.img
+### Completed ✅
+- [x] Stage 1 bootloader with A20 activation
+- [x] Stage 2 bootloader with 64-bit long mode transition
+- [x] E820 physical memory map detection
+- [x] Basic VGA text output driver
+- [x] PS/2 keyboard driver (polling)
+- [x] Command parsing system
+- [x] Basic shell with `clear` command
+- [x] ATA PIO disk driver (LBA28)
+- [x] FAT32 filesystem parser
+- [x] Filesystem abstraction layer
+- [x] Custom `malloc` / `free` allocator
+- [x] Fixed-width types (`types.h`)
 
-# Avec debug GDB
-qemu-system-x86_64 -drive format=raw,file=boot.img -s -S &
-gdb -ex "target remote :1234" -ex "set architecture i8086"
-```
+### In Progress 🚧
+- [ ] Physical Memory Manager — bitmap init & E820 free zone marking
+- [ ] Virtual Memory Manager — full page mapping API
+- [ ] App manager — input handling & lifecycle
+
+### Planned 📋
+- [ ] Interrupt handling (IDT, IRQ1 for keyboard)
+- [ ] More shell commands (`echo`, `help`, `ls`, etc.)
+- [ ] Process / task management
+- [ ] System calls
+- [ ] User mode applications
+- [ ] Multitasking / scheduler
+- [ ] Network stack
+- [ ] Graphics mode (VESA/GOP)
+- [ ] Makefile build system
+
+## Technical Details
+
+### Bootloader
+- **Architecture**: x86-64
+- **Boot Mode**: Legacy BIOS (MBR)
+- **Assembler**: NASM
+- **Boot Signature**: `0xAA55`
+
+### Kernel
+- **Language**: C
+- **Mode**: 64-bit Long Mode
+- **Compiler**: GCC with `-ffreestanding -nostdlib -nostdinc`
+- **Entry Point**: `_start()` at `0x10000`
+- **No Standard Library**: all types and utilities implemented from scratch
+
+### Build System
+- Manual compilation commands (Makefile planned)
+- Binary output for bootloader stages
+- ELF format for kernel, converted to flat binary via `objcopy`
+
+## Contributing
+
+This is a learning project, but contributions are welcome! Areas where help is appreciated:
+- Bug fixes and code review
+- Documentation improvements
+- Driver development (network, graphics, etc.)
+- Feature implementation from the roadmap
+
+## License
+
+This project is open source and available for educational purposes.
+
+## References
+
+- [OSDev Wiki](https://wiki.osdev.org/)
+- Intel 64 and IA-32 Architectures Software Developer's Manual
+- [Writing a Simple Operating System from Scratch](https://www.cs.bham.ac.uk/~exr/lectures/opsys/10_11/lectures/os-dev.pdf)
+
+## Author
+
+Created as a learning project to understand operating system development from first principles.
 
 ---
 
-## Limitations connues
+**Status**: 🚧 Active Development
 
-- **Méthode Fast A20** : La méthode port `0x92` n'est pas supportée par tous les firmwares/émulateurs. Pour une compatibilité maximale, envisager la méthode BIOS (`INT 15h / AX=2401h`) ou via le contrôleur clavier (port `0x64`/`0x60`).
-- **INT 13h CHS** : Le chargement disque utilise l'adressage CHS (Cylindre/Tête/Secteur). La limite théorique est de ~8 Go, mais la robustesse est meilleure avec LBA (mode étendu `AH=42h`).
-- **Pas de gestion d'erreur en stage 2** : En cas d'échec disque, le CPU fait simplement `HLT` sans message d'erreur.
-- **Identity mapping limité à 2 Mo** : Une seule PT de 512 entrées. Le noyau devra étendre les tables de pages.
-- **GDT 64-bit en mémoire basse** : La `gdt64_descriptor` utilise une adresse 32-bit (`dd`). Acceptable en phase de boot mais à relocaliser si le noyau libère la mémoire basse.
-
----
-
-## Chaîne de transition des modes CPU
-
-```
-BIOS (16-bit réel)
-      │
-      ▼
-Stage 1 — 0x7C00 (16-bit réel)
-  • A20, init segments, load stage 2
-      │
-      ▼
-Stage 2 — 0x7E00 (16-bit réel)
-  • Load kernel, E820 memory map
-  • GDT 32-bit → CR0.PE = 1
-      │
-      ▼
-Protected Mode (32-bit)
-  • Page tables (PML4/PDPT/PD/PT)
-  • CR3, PAE, EFER.LME, CR0.PG
-  • GDT 64-bit → far jump
-      │
-      ▼
-Long Mode (64-bit)
-  • Init segments, stack
-  • JMP 0x10000 → Kernel
-```
+Last updated: March 2026
