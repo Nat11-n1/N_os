@@ -271,8 +271,7 @@ dd if=os.img of=/dev/sdX bs=512
 - [x] Fixed-width types (`types.h`)
 
 ### In Progress 🚧
-- [ ] Physical Memory Manager — bitmap init & E820 free zone marking
-- [ ] Virtual Memory Manager — full page mapping API
+- [ ] A malloc system
 - [ ] App manager — input handling & lifecycle
 
 ### Planned 📋
@@ -285,6 +284,8 @@ dd if=os.img of=/dev/sdX bs=512
 - [ ] Network stack
 - [ ] Graphics mode (VESA/GOP)
 - [ ] Makefile build system
+- [ ] Physical Memory Manager — bitmap init & E820 free zone marking
+- [ ] Virtual Memory Manager — full page mapping API
 
 ## Technical Details
 
