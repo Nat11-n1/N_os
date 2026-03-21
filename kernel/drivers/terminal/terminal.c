@@ -1,6 +1,5 @@
 #include "terminal.h"
 #include "terminal_commande_manageur.h"
-#include "lib\hex_utils.h"
 
 #define max_commande_lenght 500
 
@@ -96,6 +95,7 @@ void print_str(unsigned char *string,int input){
     for(int i = 0; string[i] != '\0'; i++){
         print_char(string[i],input);
     }
+    return_to_line;
 }
 
 void scroll_screen(void) {
