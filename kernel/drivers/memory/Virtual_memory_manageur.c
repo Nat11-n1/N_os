@@ -5,7 +5,7 @@
 
 
 
-int vmm_map_page(uint64_t virtual_address,uint64_t physical_address){
+int VMM_map_page(uint64_t virtual_address,uint64_t physical_address){
     uint64_t CR3;
     __asm__ volatile("mov %%cr3, %0" : "=r"(CR3));
 
@@ -53,7 +53,7 @@ int vmm_map_page(uint64_t virtual_address,uint64_t physical_address){
     return 1;
 }
 
-void vmm_unmap_page(uint64_t virtual_address){
+void VMM_unmap_page(uint64_t virtual_address){
     //go to PT
     uint64_t CR3;
     __asm__ volatile("mov %%cr3, %0" : "=r"(CR3));
