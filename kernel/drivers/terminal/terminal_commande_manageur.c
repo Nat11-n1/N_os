@@ -49,9 +49,14 @@ void find_commande(unsigned char* commande){
     else if(issamestr(commande,"exe")){
         void exe_file(objectcommande);
     }
+    else if(issamestr(commande,"ls")){
+        list_files();
+    }
+    else if(issamestr(commande,"pwd")){
+        print_str(current_dir,1);
+    }
     else{
-        print_str(commande);
-        print_str(" : unknown command !");
-        return_to_line();
+        print_str(commande,1);
+        print_str(" : unknown command !",1);
     }
 }
