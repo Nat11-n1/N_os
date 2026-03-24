@@ -53,10 +53,10 @@ void find_commande(unsigned char* commande){
         list_files();
     }
     else if(issamestr(commande,"pwd")){
-        print_str(current_dir,1);
+        print_str(current_dir,0);
     }
     else{
-        print_str(commande,1);
+        print_str(commande,0);
         print_str(" : unknown command !",1);
     }
 }
